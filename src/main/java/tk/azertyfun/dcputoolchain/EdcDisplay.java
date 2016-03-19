@@ -1,23 +1,31 @@
 package tk.azertyfun.dcputoolchain;
 
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+
 import tk.azertyfun.dcputoolchain.emulator.EDC;
 import tk.azertyfun.dcputoolchain.emulator.Texture;
 
-import javax.swing.*;
-import java.awt.*;
 
 public class EdcDisplay extends JFrame {
-	public final int SCALE = 5;
-	public final int WINDOW_WIDTH = SCALE * (6 * EDC.TEXT_CELL_COLUMN_COUNT);
-	public final int WINDOW_HEIGHT = SCALE * (8 * EDC.TEXT_CELL_LINE_COUNT);
+	private static final long	serialVersionUID	= -502441221154118912L;
 
-	private EDC edc;
+	public final int			SCALE				= 5;
+	public final int			WINDOW_WIDTH		= SCALE * (6 * EDC.TEXT_CELL_COLUMN_COUNT);
+	public final int			WINDOW_HEIGHT		= SCALE * (8 * EDC.TEXT_CELL_LINE_COUNT);
 
-	private RepaintThread repaintThread;
+	private EDC					edc;
 
-	private CustomPanel customPanel = new CustomPanel();
+	private RepaintThread		repaintThread;
 
-	public EdcDisplay(EDC edc) {
+	private CustomPanel			customPanel			= new CustomPanel();
+
+
+	public EdcDisplay(EDC edc){
 		this.edc = edc;
 
 		this.setTitle("DCPU Emulator Display for techcompliant");
@@ -37,26 +45,30 @@ public class EdcDisplay extends JFrame {
 		this.setVisible(true);
 	}
 
-	public void close() {
+	public void close(){
 		repaintThread.stopped = true;
 		setVisible(false);
 		dispose();
 	}
 
+
 	private class CustomPanel extends JPanel {
+		private static final long	serialVersionUID	= 574982354493197989L;
+
+
 		@Override
-		public Dimension getPreferredSize() {
+		public Dimension getPreferredSize(){
 			return new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT);
 		}
 
 		@Override
-		public void paintComponent(Graphics graphics) {
+		public void paintComponent(Graphics graphics){
 			edc.render();
 			Texture texture = edc.getTexture();
 
-			if(texture != null) {
-				for (int x = 0; x < texture.getWidth(); ++x) {
-					for (int y = 0; y < texture.getHeight(); ++y) {
+			if(texture != null){
+				for(int x = 0; x < texture.getWidth(); ++x){
+					for(int y = 0; y < texture.getHeight(); ++y){
 						graphics.setColor(new Color(texture.getColors(x, y).red(), texture.getColors(x, y).green(), texture.getColors(x, y).blue()));
 						graphics.fillRect(SCALE * x, SCALE * y, SCALE * (x + 1), SCALE * (y + 1));
 					}
@@ -66,22 +78,23 @@ public class EdcDisplay extends JFrame {
 	}
 
 	private class RepaintThread extends Thread {
-		public boolean stopped = false;
+		public boolean	stopped	= false;
 
-		public RepaintThread() {
+
+		public RepaintThread(){
 		}
 
-		public void run() {
+		public void run(){
 			float expectedTime = 1000f / 60f;
 
-			while (!stopped) {
+			while (!stopped){
 				long start = System.currentTimeMillis();
 				customPanel.repaint();
 				long execTime = System.currentTimeMillis() - start;
-				if (expectedTime - execTime > 0) {
-					try {
+				if(expectedTime - execTime > 0){
+					try{
 						Thread.sleep((long) (expectedTime - execTime));
-					} catch (InterruptedException e) {
+					}catch (InterruptedException e){
 						e.printStackTrace();
 					}
 				}

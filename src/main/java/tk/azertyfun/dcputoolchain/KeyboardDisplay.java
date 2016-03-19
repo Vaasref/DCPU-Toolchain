@@ -1,29 +1,42 @@
 package tk.azertyfun.dcputoolchain;
 
-import tk.azertyfun.dcputoolchain.emulator.CPUControl;
-import tk.azertyfun.dcputoolchain.emulator.CallbackIsKeyDown;
-import tk.azertyfun.dcputoolchain.emulator.GenericKeyboard;
-
-import javax.imageio.ImageIO;
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.IOException;
 import java.util.LinkedList;
 
+import javax.imageio.ImageIO;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+
+import tk.azertyfun.dcputoolchain.emulator.CPUControl;
+import tk.azertyfun.dcputoolchain.emulator.CallbackIsKeyDown;
+import tk.azertyfun.dcputoolchain.emulator.GenericKeyboard;
+
+
 public class KeyboardDisplay extends JFrame implements KeyListener, CallbackIsKeyDown, ActionListener {
+	private static final long	serialVersionUID	= 7809346479881719797L;
 
-	private JButton powerButton = new JButton("PWR");
-	private JButton modeButton = new JButton("MDE");
-	private CustomPanel kbPanel;
+	private JButton				powerButton			= new JButton("PWR");
+	private JButton				modeButton			= new JButton("MDE");
+	private CustomPanel			kbPanel;
 
-	private LinkedList<Integer> keys = new LinkedList<>();
+	private LinkedList<Integer>	keys				= new LinkedList<>();
 
-	private GenericKeyboard keyboard;
-	private CPUControl cpuControl;
+	private GenericKeyboard		keyboard;
+	private CPUControl			cpuControl;
 
-	public KeyboardDisplay(GenericKeyboard keyboard, CPUControl cpuControl) {
+
+	public KeyboardDisplay(GenericKeyboard keyboard, CPUControl cpuControl){
 		this.keyboard = keyboard;
 		this.cpuControl = cpuControl;
 
@@ -38,11 +51,11 @@ public class KeyboardDisplay extends JFrame implements KeyListener, CallbackIsKe
 		JPanel panel = new JPanel();
 
 		panel.add(powerButton);
-		powerButton.setBounds(0, 0, 356/2, 50);
+		powerButton.setBounds(0, 0, 356 / 2, 50);
 		powerButton.addActionListener(this);
 
 		panel.add(modeButton);
-		modeButton.setBounds(356/2, 0, 356, 50);
+		modeButton.setBounds(356 / 2, 0, 356, 50);
 		modeButton.addActionListener(this);
 
 		kbPanel = new CustomPanel();
@@ -57,14 +70,14 @@ public class KeyboardDisplay extends JFrame implements KeyListener, CallbackIsKe
 	}
 
 	@Override
-	public void keyTyped(KeyEvent e) {
+	public void keyTyped(KeyEvent e){
 
 	}
 
 	@Override
-	public void keyPressed(KeyEvent e) {
+	public void keyPressed(KeyEvent e){
 		keys.add(e.getKeyCode());
-		switch(e.getKeyCode()) {
+		switch (e.getKeyCode()) {
 			case KeyEvent.VK_BACK_SPACE:
 				keyboard.pressedKeyCode(0x10);
 				break;
@@ -101,42 +114,46 @@ public class KeyboardDisplay extends JFrame implements KeyListener, CallbackIsKe
 	}
 
 	@Override
-	public void keyReleased(KeyEvent e) {
-		for(int i = 0; i < keys.size(); ++i) {
-			if (keys.get(i) == e.getKeyCode())
+	public void keyReleased(KeyEvent e){
+		for(int i = 0; i < keys.size(); ++i){
+			if(keys.get(i) == e.getKeyCode())
 				keys.remove(i);
 		}
 	}
 
-	public void close() {
+	public void close(){
 		setVisible(false);
 		dispose();
 	}
 
 	@Override
-	public boolean isKeyDown(int key) {
+	public boolean isKeyDown(int key){
 		return keys.contains(key);
 	}
 
 	@Override
-	public void actionPerformed(ActionEvent actionEvent) {
-		if(actionEvent.getSource() instanceof JButton && ((JButton) actionEvent.getSource()).getText().equals("PWR")) {
+	public void actionPerformed(ActionEvent actionEvent){
+		if(actionEvent.getSource() instanceof JButton && ((JButton) actionEvent.getSource()).getText().equals("PWR")){
 			cpuControl.powerButton();
-		} else if(actionEvent.getSource() instanceof JButton && ((JButton) actionEvent.getSource()).getText().equals("MDE")) {
+		}else if(actionEvent.getSource() instanceof JButton && ((JButton) actionEvent.getSource()).getText().equals("MDE")){
 			cpuControl.modeButton();
 		}
 	}
 
-	private class CustomPanel extends JPanel implements FocusListener {
-		private Image img;
-		private Image img_nofocus;
 
-		public CustomPanel() {
+	private class CustomPanel extends JPanel implements FocusListener {
+		private static final long	serialVersionUID	= -7244336973957561071L;
+
+		private Image				img;
+		private Image				img_nofocus;
+
+
+		public CustomPanel(){
 			super();
-			try {
+			try{
 				img = ImageIO.read(new File("res/keyboard.png"));
 				img_nofocus = ImageIO.read(new File("res/keyboard_nofocus.png"));
-			} catch (IOException e) {
+			}catch (IOException e){
 				e.printStackTrace();
 			}
 
@@ -146,27 +163,27 @@ public class KeyboardDisplay extends JFrame implements KeyListener, CallbackIsKe
 		}
 
 		@Override
-		public Dimension getPreferredSize() {
+		public Dimension getPreferredSize(){
 			return new Dimension(356, 200);
 		}
 
 		@Override
-		protected void paintComponent(Graphics graphics) {
+		protected void paintComponent(Graphics graphics){
 			if(hasFocus())
 				graphics.drawImage(img, 0, 0, null);
-			else {
+			else{
 				graphics.drawImage(img_nofocus, 0, 0, null);
 				requestFocusInWindow();
 			}
 		}
 
 		@Override
-		public void focusGained(FocusEvent focusEvent) {
+		public void focusGained(FocusEvent focusEvent){
 			this.repaint();
 		}
 
 		@Override
-		public void focusLost(FocusEvent focusEvent) {
+		public void focusLost(FocusEvent focusEvent){
 			this.repaint();
 		}
 	}
