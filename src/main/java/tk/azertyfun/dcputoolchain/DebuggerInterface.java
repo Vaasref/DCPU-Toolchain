@@ -1,14 +1,14 @@
 package tk.azertyfun.dcputoolchain;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.GridLayout;
-import java.awt.Panel;
+import tk.azertyfun.dcputoolchain.emulator.*;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.util.LinkedHashMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -49,15 +49,16 @@ public class DebuggerInterface extends JFrame {
 													};
 
 	private JButton				goToAddress			= new JButton(goToAddressAction);
-	private JEditorPane			ramDump				= new JEditorPane("text/html", ""),
+	private JEditorPane ramDump = new JEditorPane("text/html", ""), ramChar = new JEditorPane("text/html", ""), ramDisassembled = new JEditorPane("text/html", "");
 			ramChar = new JEditorPane("text/html", "");
 
-	private JLabel				regs				= new JLabel(), stack = new JLabel();
+	private JLabel regs = new JLabel(), stack = new JLabel(), logs = new JLabel("Logs: ");
 
-	private DCPU				dcpu;
-	private TickingThread		tickingThread;
+	private DCPU dcpu;
+	private TickingThread tickingThread;
 
 	private char				currentAddress;
+	private boolean currentAddressisPC = false;
 
 
 	public DebuggerInterface(DCPU dcpu, TickingThread tickingThread, CallbackStop callbackStop){
@@ -119,28 +120,51 @@ public class DebuggerInterface extends JFrame {
 		regs.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		regsAndStack.add(regs, BorderLayout.WEST);
 
+		logs.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+		regsAndStack.add(logs, BorderLayout.EAST);
+
 		stack.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-		regsAndStack.add(stack, BorderLayout.EAST);
+		regsAndStack.add(stack, BorderLayout.SOUTH);
 
 		getContentPane().add(regsAndStack);
 
 		Panel viewers = new Panel();
 		BorderLayout layout = new BorderLayout();
-		layout.setHgap(10);
 		viewers.setLayout(layout);
+
+		Panel rams = new Panel();
+		BorderLayout ramsLayout = new BorderLayout();
+		ramsLayout.setHgap(10);
 		ramDump.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		// ramDump.setColumns(68);
 		// ramDump.setRows(32);
 		ramDump.setEditable(false);
-		viewers.add(ramDump, BorderLayout.WEST);
+		rams.add(ramDump, BorderLayout.WEST);
 
 		ramChar.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		// ramChar.setColumns(10);
 		// ramChar.setRows(32);
 		ramChar.setEditable(false);
-		viewers.add(ramChar, BorderLayout.CENTER);
+		rams.add(ramChar, BorderLayout.CENTER);
+
+		ramDisassembled.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+		ramDisassembled.setEditable(false);
+		rams.add(ramDisassembled, BorderLayout.EAST);
+		viewers.add(rams, BorderLayout.WEST);
 
 		clearDebugInfo();
+
+		dcpu.setCallback(new DCPU.DebuggerCallback() {
+			@Override
+			public void broke() {
+				runpause();
+			}
+
+			@Override
+			public void log(char log) {
+				logs.setText(logs.getText() + ", 0x" + String.format("%04x", (int) log) + " ('" + log + "')");
+			}
+		});
 
 		Panel hardwarePanel = new Panel();
 		hardwarePanel.setLayout(new GridLayout(0, 1));
@@ -249,6 +273,12 @@ public class DebuggerInterface extends JFrame {
 
 	public void step(){
 		dcpu.step();
+		if(currentAddressisPC) {
+			currentAddress = dcpu.getCurrentInstruction();
+			while(currentAddress % 8 != 0) {
+				currentAddress--;
+			}
+		}
 		updateDebugInfo();
 	}
 
@@ -271,8 +301,10 @@ public class DebuggerInterface extends JFrame {
 
 		ActionListener actionListener = actionEvent -> {
 			String input = textField.getText();
+			currentAddressisPC = false;
 			if(input.equalsIgnoreCase("PC")){
-				currentAddress = dcpu.get(0x10009);
+				currentAddress = dcpu.getCurrentInstruction();
+				currentAddressisPC = true;
 			}else if(input.equalsIgnoreCase("A")){
 				currentAddress = dcpu.get(0x10000);
 			}else if(input.equalsIgnoreCase("B")){
@@ -298,9 +330,7 @@ public class DebuggerInterface extends JFrame {
 			}else{
 				try{
 					if(input.length() > 2 && input.substring(0, 2).equalsIgnoreCase("0x")){
-						System.out.println(input.substring(2, input.length()));
 						currentAddress = (char) Integer.parseInt(input.substring(2, input.length()), 16);
-						System.out.println(Integer.parseInt(input.substring(2, input.length()), 16));
 					}else{
 						currentAddress = dcpu.get(Integer.parseInt(input));
 					}
@@ -326,8 +356,10 @@ public class DebuggerInterface extends JFrame {
 		if(dcpu.isPausing()){
 			ramDump.setText("<html><head><style>body{font-family:monospace;font-size:10px;}</style></head><body>");
 			ramChar.setText("<html><head><style>body{font-family:monospace;font-size:10px;}</style></head><body>");
+			ramDisassembled.setText("<html><head><style>body{font-family:monospace;font-size:10px;}</style></head><body>");
 			String text = "0x" + String.format("%04x", (int) currentAddress) + ": ";
 			String charText = "";
+			String disassembledText = "";
 			for(int i = currentAddress; i < currentAddress + 32 * 8; ++i){
 				String pcHighlighterOpen = i == dcpu.get(0x10009) ? "<strong>" : "";
 				String pcHighlighterClose = i == dcpu.get(0x10009) ? "</strong>" : "";
@@ -350,23 +382,53 @@ public class DebuggerInterface extends JFrame {
 					else
 						charText += ".";
 				}
-
-
 			}
+
+			char[] ram = new char[32];
+			for(int i = 0; i < 32; ++i) {
+				ram[i] = dcpu.get(currentAddress + i - 16);
+			}
+			Disassembler disassembler = new Disassembler(ram, dcpu.getCurrentInstruction(), (char) (currentAddress - 16));
+			LinkedHashMap<String, Boolean> disassembled = disassembler.disassemble();
+			for(String key : disassembled.keySet()) {
+				if(disassembled.get(key))
+					disassembledText += "<strong>" + key + "</strong><br />";
+				else
+					disassembledText += key + "<br />";
+			}
+
 			text += "</body></html>";
 			charText += "</body></html>";
+			disassembledText += "</body></html>";
 			ramDump.setText(text);
 			ramChar.setText(charText);
+			ramDisassembled.setText(disassembledText);
 
 			goToAddress.setEnabled(true);
 
 			regs.setText("<html>" + "<head></head>" + "<body>" + "A: 0x" + String.format("%04x", (int) dcpu.get(0x10000)) + ", B: 0x" + String.format("%04x", (int) dcpu.get(0x10001)) + ", C: 0x" + String.format("%04x", (int) dcpu.get(0x10002)) + "<br />" + "X: 0x" + String.format("%04x", (int) dcpu.get(0x10003)) + ", Y: 0x" + String.format("%04x", (int) dcpu.get(0x10004)) + ", Z: 0x" + String.format("%04x", (int) dcpu.get(0x10005)) + "<br />" + "I: 0x" + String.format("%04x", (int) dcpu.get(0x10006)) + ", J: 0x" + String.format("%04x", (int) dcpu.get(0x10007)) + "<br />" + "PC: 0x" + String.format("%04x", (int) dcpu.get(0x10009)) + ", SP: 0x" + String.format("%04x", (int) dcpu.get(0x10008)) + ", EX: 0x" + String.format("%04x", (int) dcpu.get(0x1000a)) + ", IA: 0x" + String.format("%04x", (int) dcpu.get(0x1000b)) + "</body>" + "</html>");
+			regs.setText("<html>" +
+					"<head></head>" +
+					"<body>" +
+					"A: 0x" + String.format("%04x", (int) dcpu.get(0x10000)) + ", B: 0x" + String.format("%04x", (int) dcpu.get(0x10001)) + ", C: 0x" + String.format("%04x", (int) dcpu.get(0x10002)) + "<br />" +
+					"X: 0x" + String.format("%04x", (int) dcpu.get(0x10003)) + ", Y: 0x" + String.format("%04x", (int) dcpu.get(0x10004)) + ", Z: 0x" + String.format("%04x", (int) dcpu.get(0x10005)) + "<br />" +
+					"I: 0x" + String.format("%04x", (int) dcpu.get(0x10006)) + ", J: 0x" + String.format("%04x", (int) dcpu.get(0x10007)) + "<br />" +
+					"PC: 0x" + String.format("%04x", (int) dcpu.get(0x10009)) + ", SP: 0x" + String.format("%04x", (int) dcpu.get(0x10008)) + ", EX: 0x" + String.format("%04x", (int) dcpu.get(0x1000a)) + ", IA: 0x" + String.format("%04x", (int) dcpu.get(0x1000b)) +
+					"</body>" +
+					"</html>");
 
 			String stackText = "<html>" + "<head></head>" + "<body>" + "Stack: (0x" + String.format("%04x", (int) dcpu.get(0x10008)) + ") ";
 			for(int i = dcpu.get(0x10008); i < dcpu.get(0x10008) + 10 && i != 0xFFFF; ++i){
+			String stackText = "<html>" +
+					"<head></head>" +
+					"<body>" +
+					"Stack: (0x" + String.format("%04x", (int) dcpu.get(0x10008)) + ") ";
+			for(int i = dcpu.get(0x10008); i < dcpu.get(0x10008) + 10 && i != 0xFFFF; ++i) {
 				stackText += "0x" + String.format("%04x", (int) dcpu.get(i)) + ((i == dcpu.get(0x10008) + 9 || i == 0xFFFE) ? " (0x" + String.format("%04x", i) + ")" : ", ");
 			}
 			stackText += "</body>" + "</html>";
+			stackText += "</body>" +
+					"</html>";
 
 			stack.setText(stackText);
 		}else{
@@ -379,9 +441,11 @@ public class DebuggerInterface extends JFrame {
 	public void clearDebugInfo(){
 		ramDump.setText("<html><head><style>body{font-family:monospace;font-size:10px;}</style></head><body>");
 		ramChar.setText("<html><head><style>body{font-family:monospace;font-size:10px;}</style></head><body>");
+		ramDisassembled.setText("<html><head><style>body{font-family:monospace;font-size:10px;}</style></head><body>");
 
 		String text = "0x0000: ";
 		String charText = "";
+		String disassembledText = "";
 		for(int i = 0; i < 32 * 8; ++i){
 			if((i + 1) % 8 == 0 && i != 32 * 8 - 1){
 				text += "0x0000<br />0x0000: ";
@@ -393,16 +457,35 @@ public class DebuggerInterface extends JFrame {
 				text += "0x0000, ";
 				charText += ".";
 			}
-
 		}
+		for(int i = 0; i < 32; ++i)
+			disassembledText += "--------------------------<br />";
+
 		text += "</body></html>";
 		charText += "</body></html>";
+		disassembledText += "</body></html>";
 		ramDump.setText(text);
 		ramChar.setText(charText);
+		ramDisassembled.setText(disassembledText);
 
 		goToAddress.setEnabled(true);
 
 		regs.setText("<html>" + "<head></head>" + "<body>" + "A: -, B: -, C: -<br />" + "X: -, Y: -, Z: -<br />" + "I: -, J: -<br />" + "PC: -, SP: -, EX: -, IA: -" + "</body>" + "</html>");
 		stack.setText("<html>" + "<head></head>" + "<body>" + "Stack: (0xFFFF) 0x0000 (0xFFFF)" + "</body>" + "</html>");
+		regs.setText("<html>" +
+				"<head></head>" +
+				"<body>" +
+				"A: -, B: -, C: -<br />" +
+				"X: -, Y: -, Z: -<br />" +
+				"I: -, J: -<br />" +
+				"PC: -, SP: -, EX: -, IA: -" +
+				"</body>" +
+				"</html>");
+		stack.setText("<html>" +
+				"<head></head>" +
+				"<body>" +
+				"Stack: (0xFFFF) 0x0000 (0xFFFF)" +
+				"</body>" +
+				"</html>");
 	}
 }

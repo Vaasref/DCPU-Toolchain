@@ -173,7 +173,9 @@ public class Emulator implements CallbackStop {
 			hardware.add(genericKeyboard);
 		}
 
-		debuggerInterface = new DebuggerInterface(dcpu, ticking, this);
+		if(debugger) {
+			debuggerInterface = new DebuggerInterface(dcpu, ticking, this);
+		}
 
 		try{
 			if(assemble){
@@ -203,6 +205,7 @@ public class Emulator implements CallbackStop {
 						s = sc.nextLine();
 					}while (!s.equalsIgnoreCase("stop"));
 
+					stopCallback();
 					sc.close();
 				}
 			}.start();
@@ -225,6 +228,9 @@ public class Emulator implements CallbackStop {
 		}
 
 		dcpu.setStopped();
+
+		if(debuggerInterface != null)
+			debuggerInterface.close();
 		for(LemDisplay lemDisplay: lemDisplays)
 			lemDisplay.close();
 		for(KeyboardDisplay keyboardDisplay: keyboardDisplays)
@@ -232,9 +238,6 @@ public class Emulator implements CallbackStop {
 		for(EdcDisplay edcDisplay: edcDisplays)
 			edcDisplay.close();
 		ticking.setStopped();
-
-		if(debuggerInterface != null)
-			debuggerInterface.close();
 
 		try{
 			Thread.sleep(1000);
